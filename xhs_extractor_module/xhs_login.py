@@ -6,8 +6,15 @@
 from __future__ import annotations
 
 import os
+import sys
+import warnings
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+
+# 抑制 urllib3 和运行时警告
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", message=".*urllib3.*")
+warnings.filterwarnings("ignore", message=".*OpenSSL.*")
 
 
 # 登录态文件路径（保存在模块目录下）
@@ -76,6 +83,116 @@ def check_login_state_exists(state_path: str = None) -> bool:
     return os.path.exists(state_path) and os.path.getsize(state_path) > 0
 
 
+def verify_login_state(state_path: str = None) -> bool:
+    """
+    验证登录状态是否有效
+    通过访问小红书探索页面来检查登录状态是否仍然有效
+    
+    Args:
+        state_path: 登录态文件路径，默认为模块目录下的 xhs_state.json
+    
+    Returns:
+        如果登录状态有效返回True，否则返回False
+    """
+    if state_path is None:
+        state_path = str(STATE_PATH)
+    
+    # 检查文件是否存在
+    if not check_login_state_exists(state_path):
+        return False
+    
+    # 抑制验证过程中的警告信息（已在文件顶部设置，这里确保完全抑制）
+    warnings.filterwarnings("ignore")
+    
+    print("正在验证登录状态...")
+    
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(storage_state=state_path)
+            page = context.new_page()
+            
+            # 访问探索页面
+            try:
+                page.goto("https://www.xiaohongshu.com/explore", wait_until="domcontentloaded", timeout=30000)
+            except PlaywrightTimeoutError:
+                browser.close()
+                return False
+            
+            # 等待页面加载完成
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except PlaywrightTimeoutError:
+                # 如果networkidle超时，继续检查
+                pass
+            
+            # 获取页面内容
+            page_text = page.inner_text("body").lower()
+            page_url = page.url.lower()
+            
+            # 检查是否被重定向到登录页面
+            if "login" in page_url or "signin" in page_url:
+                browser.close()
+                return False
+            
+            # 检查页面文本中是否包含登录相关的关键词
+            login_keywords = ['登录', '注册', '发现发布通知登录我', '请登录', '登录查看', '立即登录']
+            has_login_keyword = any(keyword in page_text for keyword in login_keywords)
+            
+            # 检查页面是否有正常内容（登录页面通常内容较少）
+            # 如果页面文本太短，可能是登录页面
+            if len(page_text) < 100:
+                browser.close()
+                return False
+            
+            # 如果包含登录关键词且内容较少，可能未登录
+            if has_login_keyword and len(page_text) < 500:
+                browser.close()
+                return False
+            
+            # 尝试检查是否有登录弹窗或登录按钮（通过检查特定元素）
+            try:
+                # 检查常见的登录相关元素
+                login_selectors = [
+                    "text=登录",
+                    "text=注册",
+                    "text=立即登录",
+                    "text=请登录",
+                    "[class*='login']",
+                    "[class*='signin']",
+                    "[id*='login']",
+                    "[id*='signin']"
+                ]
+                login_count = 0
+                for selector in login_selectors:
+                    try:
+                        elements = page.query_selector_all(selector)
+                        login_count += len(elements)
+                    except Exception:
+                        pass
+                # 如果找到太多登录相关元素，可能是未登录状态
+                if login_count > 5:
+                    browser.close()
+                    return False
+            except Exception:
+                # 如果查询失败，继续使用其他方法判断
+                pass
+            
+            browser.close()
+            return True
+            
+    except Exception as e:
+        print(f"验证登录状态时出错: {e}")
+        return False
+
+
 if __name__ == "__main__":
-    login_xhs_and_save_state()
+    import sys
+    
+    # 如果传入参数 "--verify"，则只验证登录状态
+    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
+        is_valid = verify_login_state()
+        sys.exit(0 if is_valid else 1)
+    else:
+        login_xhs_and_save_state()
 

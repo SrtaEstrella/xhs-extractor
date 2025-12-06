@@ -61,6 +61,7 @@ notes/
 *.md
 # 但允许项目文档文件
 !README.md
+!使用说明.md
 !xhs_extractor_module/QUICK_START.md
 !xhs_extractor_module/CLI_USAGE.md
 !xhs_extractor_module/WEB_APP_GUIDE.md
@@ -77,7 +78,8 @@ notes/
 !docs/images/*.gif
 
 # Streamlit
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 
 # Jupyter Notebook
 .ipynb_checkpoints

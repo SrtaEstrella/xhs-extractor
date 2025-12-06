@@ -45,37 +45,76 @@ cd xhs-extractor
 2. 点击页面右上角的绿色 **"Code"** 按钮
 3. 选择 **"Download ZIP"** 下载压缩包
 4. 解压下载的ZIP文件到本地目录（如：`~/Downloads/xhs-extractor`）
-5. 打开终端，进入解压后的目录：
-   ```bash
-   cd ~/Downloads/xhs-extractor
-   ```
+5. 进入解压后的文件夹
 
-2. **安装依赖**
+2. **一键启动（推荐，最简单）**
+
+**macOS / Linux 用户：**
+- 双击运行 `一键启动_mac.sh` 文件
+- 或在终端中执行：
+  ```bash
+  ./一键启动_mac.sh
+  ```
+
+**Windows 用户：**
+- 双击运行 `一键启动_win.bat` 文件
+
+> 🎉 **一键启动脚本会自动完成所有步骤**：
+> - ✅ 自动检查并安装依赖（如果需要）
+> - ✅ 自动检查登录状态，未登录时引导登录
+> - ✅ 自动启动Web界面
+> 
+> **首次使用**：脚本会自动安装依赖并引导登录，之后直接启动即可。
+
+![一键启动脚本](docs/images/script.png)
+![登录流程](docs/images/login_process.png)
+
+> **重要提示**：使用前请先根据指引进行本地小红书登录，拿到cookie信息后会自动保存，后续输入链接不需要再进行登录。登录态保存在 `xhs_extractor_module/xhs_state.json` 文件中，请妥善保管。
+
+---
+
+### 手动安装（适合有经验的用户）
+
+如果你更喜欢手动控制每个步骤，可以按照以下方式操作：
+
+**1. 安装依赖**
 
 ```bash
 pip install playwright requests beautifulsoup4 streamlit
 playwright install chromium
 ```
 
-3. **首次登录（只需一次）**
+**2. 首次登录（只需一次）**
 
 ```bash
 python -m xhs_extractor_module.xhs_login
 ```
 
-这会打开浏览器，完成登录后按回车即可。登录态会自动保存。
+这会打开浏览器，完成登录后按回车即可。登录态会自动保存到 `xhs_extractor_module/xhs_state.json`。
 
-![登录流程](docs/images/login_process.png)
+**3. 启动Web界面**
 
-> **重要提示**：使用前请先根据指引进行本地小红书登录，拿到cookie信息后会自动保存，后续输入链接不需要再进行登录。登录态保存在 `xhs_extractor_module/xhs_state.json` 文件中，请妥善保管。
+```bash
+streamlit run xhs_extractor_module/web_app.py
+```
+
+或者使用命令行工具：
+
+```bash
+python -m xhs_extractor_module.cli
+```
+
+---
 
 ### 使用方式
 
 #### 方式1：Web界面（推荐，最简单）
 
-```bash
-streamlit run xhs_extractor_module/web_app.py
-```
+**一键启动（推荐）：**
+- macOS/Linux: 双击运行 `一键启动_mac.sh`
+- Windows: 双击运行 `一键启动_win.bat`
+
+> 💡 **提示**：一键启动脚本会自动完成依赖检查、登录检查和启动，无需其他操作。
 
 ![Web界面整体布局](docs/images/web_interface_overview.png)
 
@@ -110,7 +149,6 @@ python -m xhs_extractor_module.cli --output result.txt "分享文本..."
 ```
 
 > **💡 提示**：可以直接复制小红书官方的分享链接文本格式，也可以直接复制小红书笔记的URL链接，工具会自动识别并提取。
-```
 
 #### 方式3：Python API
 

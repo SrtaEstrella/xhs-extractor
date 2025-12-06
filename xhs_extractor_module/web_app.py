@@ -17,12 +17,55 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+# 在导入Streamlit之前设置stderr过滤器，过滤PyTorch相关错误
+_original_stderr = sys.stderr
+
+class FilteredStderr:
+    """过滤PyTorch相关错误的stderr包装器"""
+    def __init__(self, original):
+        self.original = original
+    
+    def write(self, text):
+        # 过滤掉PyTorch相关的错误信息（这些是Streamlit扫描模块时的已知问题）
+        text_str = str(text)
+        # 检查是否包含PyTorch相关的错误关键词（更全面的匹配）
+        py_torch_keywords = [
+            "torch.classes",
+            "torch/_classes.py",
+            "streamlit.watcher",
+            "local_sources_watcher.py",
+            "RuntimeError: Tried to instantiate class '__path__._path'",
+            "RuntimeError: no running event loop",
+            "Examining the path of torch.classes raised",
+            "During handling of the above exception",
+            "get_custom_class_python_wrapper",
+            "extract_paths(module)",
+            "bootstrap.py",
+            "asyncio.get_running_loop"
+        ]
+        
+        # 如果包含任何PyTorch相关关键词，则过滤掉
+        if any(keyword in text_str for keyword in py_torch_keywords):
+            return  # 忽略这些非致命错误
+        
+        self.original.write(text)
+    
+    def flush(self):
+        self.original.flush()
+    
+    def __getattr__(self, name):
+        return getattr(self.original, name)
+
+# 设置stderr过滤器（在导入Streamlit之前）
+sys.stderr = FilteredStderr(_original_stderr)
+
 import streamlit as st
 
 from xhs_extractor_module.xhs_fetch import fetch_note_from_url, fetch_note_from_share_text
 from xhs_extractor_module.xhs_share import extract_xhs_url_from_share_text
 from xhs_extractor_module.xhs_login import check_login_state_exists, STATE_PATH
-from xhs_extractor_module.ocr import OCRProcessor, extract_ocr_from_note
+# OCR模块延迟导入，避免Streamlit启动时扫描PyTorch相关模块导致错误
+# from xhs_extractor_module.ocr import OCRProcessor, extract_ocr_from_note
 from xhs_extractor_module.models import Note
 
 
@@ -296,6 +339,8 @@ def main():
                 if use_ocr and note.images:
                     with st.spinner(f"正在识别 {len(note.images)} 张图片中的文字..."):
                         try:
+                            # 延迟导入OCR模块，避免启动时扫描PyTorch相关模块
+                            from xhs_extractor_module.ocr import OCRProcessor, extract_ocr_from_note
                             ocr_processor = OCRProcessor()
                             note.ocr_text = extract_ocr_from_note(note, ocr_processor)
                             if note.ocr_text:
@@ -390,5 +435,11 @@ def main():
 
 
 if __name__ == "__main__":
+    # stderr过滤器已在文件顶部设置，这里直接运行main
+    # 忽略特定的警告（只过滤Warning类型）
+    import warnings
+    warnings.filterwarnings("ignore", message=".*torch.classes.*")
+    warnings.filterwarnings("ignore", message=".*streamlit.watcher.*")
+    
     main()
 

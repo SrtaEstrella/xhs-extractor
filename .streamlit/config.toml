@@ -1,0 +1,7 @@
+# Streamlit 配置文件
+# 用于配置Streamlit的行为，减少启动时的警告
+
+[server]
+# 文件监控配置
+fileWatcherType = "poll"  # 使用polling而不是watchdog，减少模块扫描问题
+
