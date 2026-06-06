@@ -1,3 +1,6 @@
+# Claude Code
+.claude/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -38,6 +41,8 @@ ENV/
 # 登录态文件（重要：不要提交）
 xhs_extractor_module/xhs_state.json
 xhs_extractor_module/browser_data/
+xhs_extractor_module/.apikey
+xhs_extractor_module/.apikey.salt
 xhs_state.json
 *.state.json
 

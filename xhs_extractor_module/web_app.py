@@ -232,7 +232,7 @@ def main():
         st.error("未找到登录态，请先运行一键启动脚本登录")
         st.stop()
 
-    # ---- 输入区域 ----
+        # ---- 输入区域 ----
     url_input = st.text_input(
         "小红书链接",
         placeholder="https://www.xiaohongshu.com/explore/... 或直接粘贴分享文本",
@@ -255,6 +255,25 @@ def main():
             key="save_dir",
             label_visibility="collapsed",
         ))
+
+    # ---- API Key 设置 ----
+    with st.expander("LLM 整理设置（可选）", expanded=False):
+        from xhs_extractor_module.llm_config import get_api_key, save_api_key, delete_api_key
+        saved_key = get_api_key()
+        api_key = st.text_input(
+            "DeepSeek API Key",
+            value=saved_key,
+            type="password",
+            placeholder="sk-...",
+            help="用于 OCR 后调用 LLM 整理文档。Key 加密保存在本地，不会上传。",
+        )
+        if api_key != saved_key:
+            if api_key.strip():
+                save_api_key(api_key)
+                st.success("API Key 已保存")
+            else:
+                delete_api_key()
+                st.info("API Key 已清除")
 
     # ---- 提取逻辑 ----
     if extract_btn:
@@ -289,11 +308,40 @@ def main():
 
         # 正文
         st.subheader(f"正文（{len(note.text)} 字符）")
-        st.markdown(note.text or "(无正文)")
+        st.markdown(
+            '<div style="white-space:pre-wrap; word-wrap:break-word;">'
+            + (note.text or "(无正文)")
+            + '</div>',
+            unsafe_allow_html=True,
+        )
 
-        # OCR 进度 + 结果（正文下方，图片上方）
+# OCR 进度 + 结果（正文下方，图片上方）
         ocr_status = st.empty()
-        ocr_placeholder = st.empty()
+
+        # 恢复状态条
+        if note.ocr_text:
+            if getattr(note, 'llm_processed', False):
+                ocr_status.success("LLM 整理完成")
+            else:
+                ocr_status.success("OCR 已完成")
+
+        # LLM 已完成时恢复双栏
+        if note.ocr_text and getattr(note, 'llm_processed', False) and getattr(note, 'ocr_raw', ''):
+            col_left, col_right = st.columns(2)
+            with col_left:
+                st.caption("OCR 原文")
+                st.markdown(
+                    '<div style="white-space:pre-wrap; word-wrap:break-word; max-height:70vh; overflow-y:auto;">'
+                    + getattr(note, 'ocr_raw', '') + '</div>',
+                    unsafe_allow_html=True,
+                )
+            with col_right:
+                st.caption("整理结果")
+                st.markdown(
+                    '<div style="max-height:70vh; overflow-y:auto;">'
+                    + note.ocr_text + '</div>',
+                    unsafe_allow_html=True,
+                )
 
         # ---- OCR 按钮 ----
         if ocr_btn and note.images:
@@ -302,6 +350,14 @@ def main():
                 ocr_status.info("正在加载 OCR 模型...")
                 ocr_processor = OCRProcessor()
 
+                col_left, col_right = st.columns(2)
+                with col_left:
+                    st.caption("OCR 原文")
+                    left_ph = st.empty()
+                with col_right:
+                    st.caption("整理结果")
+                    right_ph = st.empty()
+
                 all_results = []
                 for idx, text in ocr_processor.ocr_images_stream(note.images):
                     if text:
@@ -309,8 +365,8 @@ def main():
                         ocr_status.success(f"已识别 {idx}/{len(note.images)} 张")
                     else:
                         ocr_status.info(f"图片 {idx}/{len(note.images)} 未识别到文字")
-                    ocr_placeholder.markdown(
-                        '<div style="white-space:pre-wrap; word-wrap:break-word;">'
+                    left_ph.markdown(
+                        '<div style="white-space:pre-wrap; word-wrap:break-word; max-height:70vh; overflow-y:auto;">'
                         + ("\n".join(all_results) if all_results else "(暂无识别结果)")
                         + '</div>',
                         unsafe_allow_html=True,
@@ -318,14 +374,58 @@ def main():
 
                 note.ocr_text = "\n".join(all_results)
                 st.session_state.note = note
-                if note.ocr_text:
-                    ocr_status.success(f"OCR 完成，共识别 {len(all_results)}/{len(note.images)} 张，{len(note.ocr_text)} 字符")
-                else:
-                    ocr_status.warning("OCR 未识别到文字内容")
+                st.rerun()
             except ImportError:
                 st.error("OCR 不可用，请安装: pip install paddleocr paddlepaddle")
             except Exception as e:
                 st.error(f"OCR 失败: {e}")
+
+        # ---- OCR 完成后双栏：LLM 按钮 ----
+        if note.ocr_text and not getattr(note, 'ocr_raw', '') and not getattr(note, 'llm_processed', False):
+            col_left, col_right = st.columns(2)
+            with col_left:
+                st.caption("OCR 原文")
+                st.markdown(
+                    '<div style="white-space:pre-wrap; word-wrap:break-word; max-height:70vh; overflow-y:auto;">'
+                    + note.ocr_text + '</div>',
+                    unsafe_allow_html=True,
+                )
+            with col_right:
+                st.caption("整理结果")
+                llm_trigger = st.button("LLM 整理", width='stretch')
+                st.caption("调用 DeepSeek 将 OCR 碎片文本整理为结构化的连贯文档。")
+                if llm_trigger:
+                    note.ocr_raw = note.ocr_text
+                    st.session_state.note = note
+                    st.rerun()
+
+        # ---- LLM 流式整理 ----
+        if getattr(note, 'ocr_raw', '') and not getattr(note, 'llm_processed', False):
+            try:
+                from xhs_extractor_module.llm_process import organize_ocr_text
+                ocr_status.info("LLM 整理中...")
+
+                col_left, col_right = st.columns(2)
+                with col_left:
+                    st.caption("OCR 原文")
+                    st.markdown(
+                        '<div style="white-space:pre-wrap; word-wrap:break-word; max-height:70vh; overflow-y:auto;">'
+                        + getattr(note, 'ocr_raw', '') + '</div>',
+                        unsafe_allow_html=True,
+                    )
+                with col_right:
+                    st.caption("整理结果")
+                    full_text = st.write_stream(organize_ocr_text(note.ocr_text))
+
+                note.ocr_text = full_text
+                note.llm_processed = True
+                st.session_state.note = note
+                ocr_status.success("LLM 整理完成")
+                st.rerun()
+            except ImportError:
+                st.error("缺少依赖，请安装: pip install openai")
+            except Exception as e:
+                st.error(f"LLM 整理失败: {e}")
 
         # 图片预览（水平滚动）
         if note.images:
@@ -338,6 +438,7 @@ def main():
                 f'<div style="overflow-x:auto; white-space:nowrap; padding:8px 0;">{imgs_html}</div>',
                 unsafe_allow_html=True,
             )
+
 
         # ---- 下载图片 ----
         if download_img_btn and note.images:
@@ -354,8 +455,15 @@ def main():
             dst.mkdir(parents=True, exist_ok=True)
             md_path = dst / f"{sanitize_filename(note.title)}.md"
             md = f"# {note.title}\n\n**链接**: {note.url}\n\n---\n\n{note.text}\n"
-            if note.ocr_text:
-                md += f"\n\n---\n\n## OCR 识别结果\n\n{note.ocr_text}\n"
+            if note.ocr_text or getattr(note, 'ocr_raw', ''):
+                md += "\n\n---\n\n## OCR 识别结果\n\n"
+                if getattr(note, 'llm_processed', False):
+                    md += note.ocr_text
+                elif getattr(note, 'ocr_raw', ''):
+                    md += getattr(note, 'ocr_raw', '')
+                else:
+                    md += note.ocr_text
+                md += "\n"
             md_path.write_text(md, encoding='utf-8')
             st.success(f"正文已保存 → {md_path}")
             st.rerun()
