@@ -88,7 +88,7 @@ def extract_note(share_text: str, use_ocr: bool = False, include_images: bool = 
     """
     # 检查登录态
     if not check_login_state_exists():
-        print("\n❌ 错误: 未找到登录态文件")
+        print("\n[X] 错误: 未找到登录态文件")
         print(f"   请先运行登录脚本: python -m xhs_extractor_module.xhs_login")
         return None
     
@@ -110,28 +110,28 @@ def extract_note(share_text: str, use_ocr: bool = False, include_images: bool = 
                 ocr_processor = OCRProcessor()
                 note.ocr_text = extract_ocr_from_note(note, ocr_processor)
                 if note.ocr_text:
-                    print(f"✅ OCR识别完成，识别到 {len(note.ocr_text)} 字符")
+                    print(f"[OK] OCR识别完成，识别到 {len(note.ocr_text)} 字符")
                 else:
-                    print("⚠ OCR未识别到文字内容")
+                    print("[!] OCR未识别到文字内容")
             except ImportError:
-                print("❌ OCR功能不可用：未安装 paddleocr")
+                print("[X] OCR功能不可用：未安装 paddleocr")
                 print("   安装方法: pip install paddleocr paddlepaddle")
             except Exception as e:
-                print(f"⚠ OCR识别失败: {e}")
+                print(f"[!] OCR识别失败: {e}")
                 print("   继续使用已提取的文本内容")
         elif note.images and not use_ocr:
             # 提示用户可以使用OCR
-            print(f"\n💡 提示: 检测到 {len(note.images)} 张图片")
+            print(f"\n[!] 提示: 检测到 {len(note.images)} 张图片")
             print("   使用 --ocr 参数可以识别图片中的文字")
             print("   例如: python -m xhs_extractor_module.cli --ocr \"分享文本...\"")
         
         return note
         
     except ValueError as e:
-        print(f"\n❌ 错误: {e}")
+        print(f"\n[X] 错误: {e}")
         return None
     except Exception as e:
-        print(f"\n❌ 提取失败: {e}")
+        print(f"\n[X] 提取失败: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -168,7 +168,7 @@ def interactive_mode():
             if user_input.lower() == 'ocr':
                 use_ocr = not use_ocr
                 status = "开启" if use_ocr else "关闭"
-                print(f"\n✅ OCR模式已{status}")
+                print(f"\n[OK] OCR模式已{status}")
                 if use_ocr:
                     print("   注意: OCR需要安装 paddleocr，首次使用可能需要下载模型")
                 continue
@@ -288,9 +288,9 @@ def main():
                 if args.ocr and note.ocr_text:
                     f.write(f"图片文字识别:\n{note.ocr_text}\n")
                 f.write(f"\n链接: {note.url}\n")
-            print(f"\n✅ 内容已保存到: {args.output}")
+            print(f"\n[OK] 内容已保存到: {args.output}")
         except Exception as e:
-            print(f"\n❌ 保存文件失败: {e}")
+            print(f"\n[X] 保存文件失败: {e}")
             sys.exit(1)
 
 

@@ -56,38 +56,31 @@ class TestXhsLogin(unittest.TestCase):
         self.assertFalse(check_login_state_exists())
     
     @patch('xhs_extractor_module.xhs_login.sync_playwright')
+    @patch('xhs_extractor_module.xhs_login.launch_persistent_context')
     @patch('builtins.input')
-    def test_login_and_save_state_mocked(self, mock_input, mock_playwright):
+    def test_login_and_save_state_mocked(self, mock_input, mock_launch_ctx, mock_playwright):
         """测试登录并保存状态（使用Mock）"""
         # 设置mock
-        mock_input.return_value = ""  # 模拟按回车
-        
-        # Mock Playwright
-        mock_browser = MagicMock()
+        mock_input.return_value = ""
+
         mock_context = MagicMock()
         mock_page = MagicMock()
-        
         mock_context.new_page.return_value = mock_page
-        mock_browser.new_context.return_value = mock_context
-        
+
+        mock_launch_ctx.return_value = mock_context
         mock_p = MagicMock()
-        mock_p.chromium.launch.return_value = mock_browser
         mock_playwright.return_value.__enter__.return_value = mock_p
-        
+
         # 执行登录
         login_xhs_and_save_state()
-        
+
         # 验证
-        mock_p.chromium.launch.assert_called_once_with(headless=False, slow_mo=100)
+        mock_launch_ctx.assert_called_once_with(mock_p, headless=False, slow_mo=100)
         mock_page.goto.assert_called_once_with(
             "https://www.xiaohongshu.com",
-            wait_until="networkidle"
+            wait_until="domcontentloaded", timeout=60000
         )
-        mock_context.storage_state.assert_called_once()
-        mock_browser.close.assert_called_once()
-        
-        # 验证文件是否创建
-        self.assertTrue(os.path.exists(STATE_PATH))
+        mock_context.close.assert_called_once()
 
 
 if __name__ == "__main__":

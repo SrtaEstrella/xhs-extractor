@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import os
+import sys
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from .browser_config import launch_persistent_context
 
 from .xhs_share import extract_xhs_url_from_share_text
 from .models import Note
@@ -61,7 +63,7 @@ def _parse_note_from_state(state: Dict[str, Any], url: str) -> Note:
                         note_id = str(first_id)
                 except (TypeError, AttributeError) as e:
                     # 如果 detail_map 不是字典，或者 first_id 不可哈希，跳过这个结构
-                    print(f"⚠ 警告：解析结构1时出错: {e}")
+                    print(f"[!] 警告：解析结构1时出错: {e}")
                     print(f"   first_id 类型: {type(first_id)}, 值: {first_id}")
                     print(f"   detail_map 类型: {type(detail_map)}")
                     pass
@@ -108,7 +110,7 @@ def _parse_note_from_state(state: Dict[str, Any], url: str) -> Note:
     
     if note_data is None:
         # 打印state的keys帮助调试
-        print("⚠ 警告：未能在 __INITIAL_STATE__ 中找到 note 数据结构")
+        print("[!] 警告：未能在 __INITIAL_STATE__ 中找到 note 数据结构")
         print(f"   state 的 keys: {list(state.keys())[:20]}")  # 只显示前20个
         
         # 尝试深度搜索所有可能包含note数据的路径
@@ -149,7 +151,7 @@ def _parse_note_from_state(state: Dict[str, Any], url: str) -> Note:
         note_data = find_note_data(state)
         
         if note_data:
-            print(f"   ✅ 通过深度搜索找到笔记数据")
+            print(f"   [OK] 通过深度搜索找到笔记数据")
         else:
             print("   尝试从URL提取基本信息...")
         
@@ -302,13 +304,24 @@ def _parse_note_from_state(state: Dict[str, Any], url: str) -> Note:
             if images:  # 如果找到了图片，就不再尝试其他key
                 break
     
+    # 提取作者昵称
+    author = ""
+    for user_key in ("user", "noteUser", "author"):
+        user = note_data.get(user_key)
+        user = extract_vue_value(user)
+        if isinstance(user, dict):
+            author = str(user.get("nickname") or user.get("nickName") or user.get("name") or "")
+            if author:
+                break
+
     return Note(
         id=str(note_id),
         url=url,
         title=title or "未命名笔记",
         text=text,
+        author=author,
         images=images,
-        ocr_text="",  # 后面可以再接 OCR
+        ocr_text="",
         raw=note_data,
     )
 
@@ -352,16 +365,15 @@ def fetch_note_from_share_text(share_text: str, state_path: str = None) -> Note:
     
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(storage_state=state_path)
+            context = launch_persistent_context(p, headless=True)
             page = context.new_page()
             
             # 直接打开短链，Playwright 会自动跟踪到 explore 的真实链接
             try:
-                page.goto(short_url, wait_until="networkidle", timeout=30000)
+                page.goto(short_url, wait_until="domcontentloaded", timeout=60000)
             except PlaywrightTimeoutError:
-                # 如果networkidle超时，尝试domcontentloaded
-                page.goto(short_url, wait_until="domcontentloaded", timeout=30000)
+                # 如果domcontentloaded也超时，尝试更宽松的load事件
+                page.goto(short_url, wait_until="load", timeout=60000)
             
             final_url = page.url
             print(f"最终URL: {final_url}")
@@ -370,10 +382,10 @@ def fetch_note_from_share_text(share_text: str, state_path: str = None) -> Note:
             try:
                 page.wait_for_function(
                     "() => window.__INITIAL_STATE__ !== undefined",
-                    timeout=10000
+                    timeout=30000
                 )
             except PlaywrightTimeoutError:
-                print("⚠ 警告：等待 __INITIAL_STATE__ 超时，尝试直接获取...")
+                print("[!] 警告：等待 __INITIAL_STATE__ 超时，尝试直接获取...")
             
             # 在浏览器里序列化 __INITIAL_STATE__ 对象
             # 使用 JSON.stringify 避免序列化错误（循环引用或对象过大）
@@ -449,7 +461,7 @@ def fetch_note_from_share_text(share_text: str, state_path: str = None) -> Note:
                 
             except Exception as e:
                 # 如果JSON序列化也失败，尝试只提取需要的部分
-                print(f"⚠ 警告：完整序列化失败 ({str(e)[:100]}...)，尝试提取关键数据...")
+                print(f"[!] 警告：完整序列化失败 ({str(e)[:100]}...)，尝试提取关键数据...")
                 try:
                     # 只提取笔记相关的数据，避免序列化整个state
                     state_json = page.evaluate("""
@@ -486,7 +498,10 @@ def fetch_note_from_share_text(share_text: str, state_path: str = None) -> Note:
                 except Exception as e2:
                     raise RuntimeError(f"无法获取 window.__INITIAL_STATE__: {e2}")
             
-            browser.close()
+            try:
+                context.close()
+            except Exception:
+                pass
         
         # 解析state
         note = _parse_note_from_state(state, final_url)
@@ -522,7 +537,7 @@ if __name__ == "__main__":
     
     # 检查登录态
     if not check_login_state_exists():
-        print("\n❌ 错误：未找到登录态文件")
+        print("\n[X] 错误：未找到登录态文件")
         print("请先运行登录脚本：")
         print("  python -m xhs_extractor_module.xhs_login")
         sys.exit(1)
@@ -534,7 +549,7 @@ if __name__ == "__main__":
     share = input().strip()
     
     if not share:
-        print("❌ 错误：输入为空")
+        print("[X] 错误：输入为空")
         sys.exit(1)
     
     try:
@@ -555,10 +570,10 @@ if __name__ == "__main__":
             if len(note.images) > 5:
                 print(f"  ... 还有 {len(note.images) - 5} 张图片")
         
-        print("\n✅ 提取完成！")
+        print("\n[OK] 提取完成！")
         
     except Exception as e:
-        print(f"\n❌ 错误: {e}")
+        print(f"\n[X] 错误: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

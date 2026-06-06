@@ -21,7 +21,7 @@ class TestIntegration(unittest.TestCase):
         """检查前置条件"""
         cls.has_login_state = check_login_state_exists()
         if not cls.has_login_state:
-            print("\n⚠ 警告: 未找到登录态文件")
+            print("\n[!] 警告: 未找到登录态文件")
             print(f"   请先运行: python -m xhs_extractor_module.xhs_login")
     
     def setUp(self):
@@ -51,7 +51,7 @@ class TestIntegration(unittest.TestCase):
         # 正文可能为空（某些笔记只有图片）
         # self.assertTrue(len(note.text) > 0 or len(note.images) > 0)
         
-        print(f"\n✅ 提取成功:")
+        print(f"\n[OK] 提取成功:")
         print(f"   标题: {note.title}")
         print(f"   正文长度: {len(note.text)} 字符")
         print(f"   图片数量: {len(note.images)}")
@@ -70,7 +70,7 @@ class TestIntegration(unittest.TestCase):
         self.assertIsNotNone(note.id)
         self.assertTrue(note.url.startswith("https://www.xiaohongshu.com"))
         
-        print(f"\n✅ 从URL提取成功:")
+        print(f"\n[OK] 从URL提取成功:")
         print(f"   标题: {note.title}")
         print(f"   URL: {note.url}")
     
@@ -97,7 +97,7 @@ class TestEndToEnd(unittest.TestCase):
         """检查前置条件"""
         cls.has_login_state = check_login_state_exists()
         if not cls.has_login_state:
-            print("\n⚠ 警告: 未找到登录态文件，跳过端到端测试")
+            print("\n[!] 警告: 未找到登录态文件，跳过端到端测试")
     
     @unittest.skip("需要真实数据")
     def test_full_workflow(self):
@@ -121,7 +121,7 @@ class TestEndToEnd(unittest.TestCase):
         
         self.assertIsInstance(full_text, str)
         
-        print(f"\n✅ 完整流程测试通过")
+        print(f"\n[OK] 完整流程测试通过")
         print(f"   笔记ID: {note.id}")
         print(f"   标题: {note.title}")
         print(f"   完整文本长度: {len(full_text)} 字符")

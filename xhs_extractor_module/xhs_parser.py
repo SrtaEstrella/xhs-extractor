@@ -216,7 +216,7 @@ def fetch_xhs_note(url: str, cookies: Optional[dict] = None, cookie_string: Opti
     # 检查是否需要登录
     login_keywords = ['登录', '注册', '发现发布通知登录我', '请登录', '登录查看']
     if not text or len(text) < 20 or any(keyword in text for keyword in login_keywords):
-        print("⚠ 警告：检测到可能需要登录才能查看完整内容")
+        print("[!] 警告：检测到可能需要登录才能查看完整内容")
         print("   提取到的文本可能不完整，建议：")
         print("   1. 在浏览器中打开链接，复制完整内容到文件")
         print("   2. 使用命令: python main.py ingest <文件路径>")

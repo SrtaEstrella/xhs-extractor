@@ -224,215 +224,160 @@ def main():
         page_icon="📱",
         layout="wide"
     )
-    
-    st.title("📱 小红书笔记提取工具")
-    st.markdown("---")
-    
+
+    st.title("小红书笔记提取工具")
+
     # 检查登录态
     if not check_login_state_exists():
-        st.error("❌ 未找到登录态文件")
-        st.info("请先运行以下命令进行登录：")
-        st.code("python -m xhs_extractor_module.xhs_login", language="bash")
+        st.error("未找到登录态，请先运行一键启动脚本登录")
         st.stop()
-    
-    # 侧边栏：配置选项
-    with st.sidebar:
-        st.header("⚙️ 设置")
-        
-        use_ocr = st.checkbox(
-            "🔤 OCR识别图片文字",
-            value=False,
-            help="识别图片中的文字内容（需要安装paddleocr）"
-        )
-        
-        download_images = st.checkbox(
-            "🖼️ 下载图片到本地",
-            value=False,
-            help="将笔记中的图片下载到本地文件夹"
-        )
-        
-        download_content = st.checkbox(
-            "📝 下载笔记正文",
-            value=True,
-            help="将笔记正文保存为Markdown文件"
-        )
-        
-        st.markdown("---")
-        st.header("📁 保存位置")
-        
-        # 保存目录选择
-        default_dir = Path.home() / "Downloads" / "xhs_notes"
-        save_dir_input = st.text_input(
-            "保存目录",
-            value=str(default_dir),
-            help="笔记将保存到此目录下的以标题命名的文件夹中"
-        )
-        
-        save_dir = Path(save_dir_input)
-    
-    # 主界面
-    st.header("📥 输入小红书链接")
-    
-    # 输入方式选择
-    input_method = st.radio(
-        "输入方式",
-        ["直接输入URL", "粘贴分享文本"],
-        horizontal=True
+
+    # ---- 输入区域 ----
+    url_input = st.text_input(
+        "小红书链接",
+        placeholder="https://www.xiaohongshu.com/explore/... 或直接粘贴分享文本",
     )
-    
-    if input_method == "直接输入URL":
-        url_input = st.text_input(
-            "小红书链接",
-            placeholder="https://www.xiaohongshu.com/explore/... 或 http://xhslink.com/...",
-            help="支持完整链接或短链接"
-        )
-        share_text = None
-    else:
-        share_text_input = st.text_area(
-            "分享文本",
-            placeholder="算法面经：字节大模型Agent 11.16 一面： 请介绍 Tran... http://xhslink.com/o/ABC123 复制后打开【小红书】查看笔记！",
-            height=100,
-            help="粘贴完整的小红书分享文本"
-        )
-        url_input = None
-        share_text = share_text_input if share_text_input.strip() else None
-    
-    # 提取按钮
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        extract_button = st.button("🚀 开始提取", type="primary", use_container_width=True)
-    
-    # 处理提取
-    if extract_button:
-        if not url_input and not share_text:
-            st.warning("⚠️ 请输入小红书链接或分享文本")
+
+    # 保存目录 + 操作按钮
+    btn_col1, btn_col2, btn_col3, btn_col4, btn_col5 = st.columns([2, 1, 1, 1, 3])
+    with btn_col1:
+        extract_btn = st.button("开始提取", type="primary", width='stretch')
+    with btn_col2:
+        ocr_btn = st.button("OCR 识别", disabled="note" not in st.session_state, width='stretch')
+    with btn_col3:
+        download_img_btn = st.button("下载图片", disabled="note" not in st.session_state, width='stretch')
+    with btn_col4:
+        download_md_btn = st.button("下载正文", disabled="note" not in st.session_state, width='stretch')
+    with btn_col5:
+        save_dir = Path(st.text_input(
+            "保存到",
+            value=str(Path.home() / "Downloads" / "xhs_notes"),
+            key="save_dir",
+            label_visibility="collapsed",
+        ))
+
+    # ---- 提取逻辑 ----
+    if extract_btn:
+        raw = url_input.strip()
+        if not raw:
+            st.warning("请输入小红书链接或分享文本")
         else:
             try:
-                with st.spinner("正在提取笔记内容..."):
-                    # 提取笔记
-                    if url_input:
-                        note = fetch_note_from_url(url_input)
+                with st.spinner("正在提取..."):
+                    url = extract_xhs_url_from_share_text(raw)
+                    if url:
+                        note = fetch_note_from_url(url)
                     else:
-                        note = fetch_note_from_share_text(share_text)
-                
-                # 显示提取结果
-                st.success("✅ 笔记提取成功！")
-                
-                # 显示笔记信息
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("标题长度", f"{len(note.title)} 字符")
-                with col2:
-                    st.metric("正文长度", f"{len(note.text)} 字符")
-                with col3:
-                    st.metric("图片数量", len(note.images))
-                
-                # 显示标题和正文预览
-                st.subheader("📝 笔记内容")
-                st.markdown(f"**标题**: {note.title}")
-                st.markdown(f"**链接**: {note.url}")
-                
-                with st.expander("查看正文", expanded=False):
-                    st.markdown(note.text)
-                
-                # OCR处理
-                if use_ocr and note.images:
-                    with st.spinner(f"正在识别 {len(note.images)} 张图片中的文字..."):
-                        try:
-                            # 延迟导入OCR模块，避免启动时扫描PyTorch相关模块
-                            from xhs_extractor_module.ocr import OCRProcessor, extract_ocr_from_note
-                            ocr_processor = OCRProcessor()
-                            note.ocr_text = extract_ocr_from_note(note, ocr_processor)
-                            if note.ocr_text:
-                                st.success(f"✅ OCR识别完成，识别到 {len(note.ocr_text)} 字符")
-                                with st.expander("查看OCR识别结果", expanded=False):
-                                    st.markdown(note.ocr_text)
-                            else:
-                                st.warning("⚠️ OCR未识别到文字内容")
-                        except ImportError:
-                            st.error("❌ OCR功能不可用：未安装 paddleocr")
-                            st.info("安装方法: `pip install paddleocr paddlepaddle`")
-                        except Exception as e:
-                            st.error(f"❌ OCR识别失败: {e}")
-                
-                # 显示图片
-                if note.images:
-                    st.subheader("🖼️ 图片预览")
-                    num_cols = 3
-                    cols = st.columns(num_cols)
-                    for i, img_url in enumerate(note.images[:9]):  # 只显示前9张
-                        with cols[i % num_cols]:
-                            st.image(img_url, caption=f"图片 {i+1}", use_container_width=True)
-                    
-                    if len(note.images) > 9:
-                        st.info(f"还有 {len(note.images) - 9} 张图片未显示")
-                
-                # 保存到本地
-                if download_content or download_images:
-                    st.subheader("💾 保存到本地")
-                    
-                    if not save_dir.exists():
-                        save_dir.mkdir(parents=True, exist_ok=True)
-                        st.info(f"📁 创建目录: {save_dir}")
-                    
-                    try:
-                        results = save_note_to_local(
-                            note,
-                            save_dir,
-                            download_images=download_images,
-                            use_ocr=use_ocr
-                        )
-                        
-                        if results["success"]:
-                            st.success(f"✅ 保存完成！")
-                            st.info(f"📁 保存位置: {results['folder']}")
-                            st.info(f"📄 文件数量: {len(results['files'])}")
-                            
-                            # 显示文件列表
-                            with st.expander("查看保存的文件", expanded=False):
-                                for file_path in results["files"]:
-                                    st.text(file_path)
-                            
-                            if results["errors"]:
-                                st.warning("⚠️ 部分文件保存失败:")
-                                for error in results["errors"]:
-                                    st.text(error)
-                        else:
-                            st.error("❌ 保存失败")
-                            for error in results["errors"]:
-                                st.error(error)
-                    
-                    except Exception as e:
-                        st.error(f"❌ 保存失败: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
-            
-            except ValueError as e:
-                st.error(f"❌ 错误: {e}")
+                        note = fetch_note_from_url(raw)
+                st.session_state.note = note
+                st.rerun()
             except Exception as e:
-                st.error(f"❌ 提取失败: {e}")
-                import traceback
-                with st.expander("查看错误详情"):
-                    st.code(traceback.format_exc())
-    
-    # 底部说明
+                st.error(f"提取失败: {e}")
+
+    # ---- 结果展示 ----
+    if "note" in st.session_state:
+        st.markdown("---")
+        note = st.session_state.note
+
+        # 标题 + 作者
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.metric("标题", note.title[:50] + ("..." if len(note.title) > 50 else ""))
+        with col2:
+            author_display = getattr(note, 'author', '') or "(未知作者)"
+            st.metric("作者", author_display)
+
+        # 正文
+        st.subheader(f"正文（{len(note.text)} 字符）")
+        st.markdown(note.text or "(无正文)")
+
+        # OCR 进度 + 结果（正文下方，图片上方）
+        ocr_status = st.empty()
+        ocr_placeholder = st.empty()
+
+        # ---- OCR 按钮 ----
+        if ocr_btn and note.images:
+            try:
+                from xhs_extractor_module.ocr import OCRProcessor
+                ocr_status.info("正在加载 OCR 模型...")
+                ocr_processor = OCRProcessor()
+
+                all_results = []
+                for idx, text in ocr_processor.ocr_images_stream(note.images):
+                    if text:
+                        all_results.append(f"[图片 {idx} OCR 结果] {text.replace(chr(10), ' ')}")
+                        ocr_status.success(f"已识别 {idx}/{len(note.images)} 张")
+                    else:
+                        ocr_status.info(f"图片 {idx}/{len(note.images)} 未识别到文字")
+                    ocr_placeholder.markdown(
+                        '<div style="white-space:pre-wrap; word-wrap:break-word;">'
+                        + ("\n".join(all_results) if all_results else "(暂无识别结果)")
+                        + '</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                note.ocr_text = "\n".join(all_results)
+                st.session_state.note = note
+                if note.ocr_text:
+                    ocr_status.success(f"OCR 完成，共识别 {len(all_results)}/{len(note.images)} 张，{len(note.ocr_text)} 字符")
+                else:
+                    ocr_status.warning("OCR 未识别到文字内容")
+            except ImportError:
+                st.error("OCR 不可用，请安装: pip install paddleocr paddlepaddle")
+            except Exception as e:
+                st.error(f"OCR 失败: {e}")
+
+        # 图片预览（水平滚动）
+        if note.images:
+            st.subheader(f"图片（{len(note.images)} 张）")
+            imgs_html = "".join(
+                f'<img src="{url}" style="height:320px; margin-right:10px; border-radius:6px;" title="图片 {i+1}">'
+                for i, url in enumerate(note.images)
+            )
+            st.markdown(
+                f'<div style="overflow-x:auto; white-space:nowrap; padding:8px 0;">{imgs_html}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # ---- 下载图片 ----
+        if download_img_btn and note.images:
+            dst = save_dir / sanitize_filename(note.title)
+            dst.mkdir(parents=True, exist_ok=True)
+            success = sum(1 for i, u in enumerate(note.images)
+                          if download_image(u, dst / f"image_{i+1:03d}.jpg"))
+            st.success(f"图片已保存: {success}/{len(note.images)} → {dst}")
+            st.rerun()
+
+        # ---- 下载正文 ----
+        if download_md_btn:
+            dst = save_dir / sanitize_filename(note.title)
+            dst.mkdir(parents=True, exist_ok=True)
+            md_path = dst / f"{sanitize_filename(note.title)}.md"
+            md = f"# {note.title}\n\n**链接**: {note.url}\n\n---\n\n{note.text}\n"
+            if note.ocr_text:
+                md += f"\n\n---\n\n## OCR 识别结果\n\n{note.ocr_text}\n"
+            md_path.write_text(md, encoding='utf-8')
+            st.success(f"正文已保存 → {md_path}")
+            st.rerun()
+
+
+    # ---- 底部说明 ----
+    # ---- 底部说明 ----
     st.markdown("---")
     st.markdown("""
-    ### 📖 使用说明
-    
-    1. **输入链接**: 可以直接输入URL或粘贴分享文本
-    2. **选择选项**: 在侧边栏选择需要的功能
-    3. **开始提取**: 点击"开始提取"按钮
-    4. **查看结果**: 提取完成后可以预览内容
-    5. **保存文件**: 如果启用了下载选项，文件会自动保存到指定目录
-    
-    ### 💡 提示
-    
-    - 笔记会保存到指定目录下的以标题命名的文件夹中
-    - Markdown文件包含标题、正文、OCR文本（如果启用）和图片引用
-    - 图片会按顺序命名为 `image_001.jpg`, `image_002.jpg` 等
-    """)
+    ### 使用说明
 
+    1. **输入链接**：输入小红书笔记链接，或直接粘贴 App 分享文本
+    2. **开始提取**：点击「开始提取」按钮
+    3. **查看结果**：正文和图片即刻展示，无需额外操作
+    4. **按需使用**：随时点击「OCR 识别」提取图片文字、「下载图片」保存图片、「下载正文」保存 Markdown
+
+    ### 提示
+
+    - 笔记文件保存到上方「保存到」目录下以标题命名的文件夹中
+    - Markdown 正文包含标题、正文文字和 OCR 结果（如有）
+    - 图片按顺序命名为 `image_001.jpg` 等
+    """)
 
 if __name__ == "__main__":
     # stderr过滤器已在文件顶部设置，这里直接运行main

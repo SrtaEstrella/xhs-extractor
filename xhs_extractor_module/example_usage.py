@@ -70,7 +70,7 @@ def example_3_with_ocr():
         cookie_string = cookie_manager.cookie_dict_to_string(saved_cookies)
     
     note = fetch_xhs_note(url, cookie_string=cookie_string)
-    print(f"✓ 获取笔记成功: {note.title}")
+    print(f"[OK] 获取笔记成功: {note.title}")
     print(f"  - 文本长度: {len(note.text)} 字符")
     print(f"  - 图片数量: {len(note.images)}")
     
@@ -79,7 +79,7 @@ def example_3_with_ocr():
         print(f"\n开始 OCR 处理 {len(note.images)} 张图片...")
         ocr_processor = OCRProcessor()
         note.ocr_text = extract_ocr_from_note(note, ocr_processor)
-        print(f"✓ OCR 完成，识别文字: {len(note.ocr_text)} 字符")
+        print(f"[OK] OCR 完成，识别文字: {len(note.ocr_text)} 字符")
     else:
         print("没有图片，跳过 OCR")
     
@@ -108,11 +108,11 @@ def example_4_cookie_management():
     
     # 2. 保存 Cookie
     cookie_manager.save_cookies(cookies_dict)
-    print("✓ Cookie 已保存")
+    print("[OK] Cookie 已保存")
     
     # 3. 加载 Cookie
     loaded_cookies = cookie_manager.load_saved_cookies()
-    print(f"✓ Cookie 已加载: {len(loaded_cookies) if loaded_cookies else 0} 个")
+    print(f"[OK] Cookie 已加载: {len(loaded_cookies) if loaded_cookies else 0} 个")
     
     # 4. 转换为字符串
     if loaded_cookies:
@@ -131,22 +131,22 @@ def example_5_error_handling():
     try:
         note = fetch_xhs_note(url)
         # 处理成功的情况
-        print(f"✓ 提取成功: {note.title}")
+        print(f"[OK] 提取成功: {note.title}")
         
     except ValueError as e:
         error_msg = str(e)
         
         if "需要 Cookie" in error_msg or "登录" in error_msg:
-            print("⚠ 需要登录 Cookie")
+            print("[!] 需要登录 Cookie")
             print("解决方案:")
             print("  1. 在浏览器中打开链接并登录")
             print("  2. 从 Network 面板复制 Cookie")
             print("  3. 使用 Cookie 重新提取")
         else:
-            print(f"✗ 提取失败: {error_msg}")
+            print(f"[X] 提取失败: {error_msg}")
     
     except Exception as e:
-        print(f"✗ 未知错误: {e}")
+        print(f"[X] 未知错误: {e}")
         import traceback
         traceback.print_exc()
 
@@ -175,9 +175,9 @@ def example_6_batch_processing():
         try:
             note = fetch_xhs_note(url, cookie_string=cookie_string)
             notes.append(note)
-            print(f"  ✓ 成功: {note.title}")
+            print(f"  [OK] 成功: {note.title}")
         except Exception as e:
-            print(f"  ✗ 失败: {e}")
+            print(f"  [X] 失败: {e}")
     
     print(f"\n批量处理完成: {len(notes)}/{len(urls)} 成功")
 

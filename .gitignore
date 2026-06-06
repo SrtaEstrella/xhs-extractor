@@ -37,6 +37,7 @@ ENV/
 
 # 登录态文件（重要：不要提交）
 xhs_extractor_module/xhs_state.json
+xhs_extractor_module/browser_data/
 xhs_state.json
 *.state.json
 

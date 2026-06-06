@@ -6,8 +6,13 @@ OCR 功能模块
 from __future__ import annotations
 
 import os
+import sys
 from typing import List, Optional
 import requests
+
+# PaddlePaddle 3.x oneDNN PIR bug workaround: 禁用 PIR API + oneDNN
+os.environ["FLAGS_enable_pir_api"] = "0"
+os.environ["FLAGS_use_mkldnn"] = "0"
 
 try:
     from paddleocr import PaddleOCR
@@ -30,20 +35,19 @@ class OCRProcessor:
         
         if self.use_paddleocr:
             try:
-                # 新版本的 PaddleOCR 可能不支持 show_log 参数，使用 enable_mkldnn=False 来避免警告
-                try:
-                    # 尝试新版本的参数
-                    self.ocr_engine = PaddleOCR(use_angle_cls=True, lang=use_lang)
-                except TypeError:
-                    # 如果失败，尝试旧版本的参数
-                    try:
-                        self.ocr_engine = PaddleOCR(use_angle_cls=True, lang=use_lang, show_log=False)
-                    except TypeError:
-                        # 再尝试最简单的参数
-                        self.ocr_engine = PaddleOCR(lang=use_lang)
-                print("✓ PaddleOCR 初始化成功")
+                # PP-OCRv4 比 v5 更快，CPU 友好
+                self.ocr_engine = PaddleOCR(
+                    lang=use_lang,
+                    ocr_version="PP-OCRv4",
+                    use_textline_orientation=False,
+                    use_doc_orientation_classify=False,
+                    use_doc_unwarping=False,
+                    text_det_limit_side_len=640,
+                )
             except Exception as e:
-                print(f"警告：PaddleOCR 初始化失败: {e}")
+                import traceback
+                print(f"[OCR ERROR] 初始化失败: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 self.use_paddleocr = False
     
     def ocr_image_from_url(self, image_url: str) -> str:
@@ -54,9 +58,11 @@ class OCRProcessor:
             识别出的文字文本
         """
         if not image_url or not image_url.startswith('http'):
-            print(f"警告：无效的图片 URL: {image_url}")
+            pass  # debug removed
             return ""
         
+        pass  # debug removed
+
         try:
             # 下载图片（添加更完整的请求头，模拟浏览器）
             headers = {
@@ -67,6 +73,9 @@ class OCRProcessor:
             }
             response = requests.get(image_url, headers=headers, timeout=20, stream=True)
             response.raise_for_status()
+            content_type = response.headers.get('Content-Type', '').lower()
+            content_length = response.headers.get('Content-Length', 'unknown')
+            pass  # debug removed
             
             # 保存临时文件
             import tempfile
@@ -76,6 +85,8 @@ class OCRProcessor:
                 suffix = '.png'
             elif 'gif' in content_type:
                 suffix = '.gif'
+            elif 'webp' in content_type:
+                suffix = '.webp'
             else:
                 suffix = '.jpg'
             
@@ -96,35 +107,52 @@ class OCRProcessor:
             return text
             
         except requests.exceptions.Timeout:
-            print(f"警告：OCR 图片 {image_url} 超时")
+            pass  # debug removed
             return ""
         except requests.exceptions.RequestException as e:
-            print(f"警告：下载图片 {image_url} 失败: {e}")
+            pass  # debug removed
             return ""
         except Exception as e:
-            print(f"警告：OCR 图片 {image_url} 失败: {e}")
+            pass  # debug removed
             return ""
     
     def ocr_image_from_file(self, image_path: str) -> str:
         """
         从本地图片文件识别文字
-        
+
         Returns:
             识别出的文字文本，如果没有 OCR 引擎或识别失败则返回空字符串
         """
         if self.use_paddleocr and self.ocr_engine:
             try:
-                # 新版本的 PaddleOCR (3.x) 不再支持 cls 参数
-                # 直接调用 ocr 方法，不带 cls 参数
+                pass  # debug removed
+                # 检查文件是否存在且非空
+                if not os.path.exists(image_path):
+                    pass  # debug removed
+                    return ""
+                file_size = os.path.getsize(image_path)
+                pass  # debug removed
+                if file_size < 100:
+                    pass  # debug removed
+                    return ""
+
                 result = self.ocr_engine.ocr(image_path)
-                
-                print(f"[DEBUG OCR] OCR 返回结果类型: {type(result)}")
-                print(f"[DEBUG OCR] OCR 返回结果长度: {len(result) if isinstance(result, (list, tuple)) else 'N/A'}")
-                if result and len(str(result)) < 500:
-                    print(f"[DEBUG OCR] OCR 返回结果预览: {result}")
-                
-                if not result:
-                    print(f"[DEBUG OCR] OCR 返回结果为空")
+
+                pass  # debug removed
+                if isinstance(result, list):
+                    pass  # debug removed
+                    if result:
+                        first = result[0]
+                        pass  # debug removed
+                        if first is not None:
+                            pass  # debug removed
+                        else:
+                            pass  # debug removed
+                else:
+                    pass  # debug removed
+
+                if not result or result == [None] or result == [[]]:
+                    pass  # debug removed
                     return ""
                 
                 texts = []
@@ -190,50 +218,44 @@ class OCRProcessor:
                 
                 extract_texts(result)
                 
-                print(f"[DEBUG OCR] 提取到 {len(texts)} 个文本片段")
+                pass  # debug removed
                 if texts:
-                    print(f"[DEBUG OCR] 文本预览: {texts[:5]}")
+                    pass  # debug removed
                 
                 return "\n".join(texts) if texts else ""
             except Exception as e:
-                print(f"[ERROR OCR] PaddleOCR 处理失败: {e}")
                 import traceback
-                traceback.print_exc()
+                print(f"[OCR ERROR] OCR 处理失败: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 return ""
         else:
-            # 如果没有 PaddleOCR，返回空字符串
-            # 注意：不要在每次调用时都打印提示，这样会太吵
-            # 只在初始化时打印一次即可
+            pass  # debug removed
             return ""
     
     def ocr_images(self, image_urls: List[str]) -> str:
+        """批量 OCR，返回合并文本（兼容旧接口）"""
+        return "\n\n".join(
+            f"[图片 {i} OCR 结果]\n{text}"
+            for i, text in self.ocr_images_stream(image_urls)
+            if text
+        )
+
+    def ocr_images_stream(self, image_urls: List[str]):
         """
-        批量 OCR 多张图片，返回合并的文本
+        流式 OCR：每识别完一张就 yield (序号, 文字)，不等待全部完成。
         """
         if not image_urls:
-            return ""
-        
-        results = []
-        successful = 0
-        failed = 0
-        
+            return
+
         for i, url in enumerate(image_urls, 1):
-            print(f"正在 OCR 第 {i}/{len(image_urls)} 张图片... ({url[:50]}...)")
             try:
                 text = self.ocr_image_from_url(url)
                 if text and text.strip():
-                    results.append(f"[图片 {i} OCR 结果]\n{text}")
-                    successful += 1
-                    print(f"✓ 图片 {i} OCR 成功，识别到 {len(text)} 字符")
+                    yield (i, text)
                 else:
-                    failed += 1
-                    print(f"⚠ 图片 {i} OCR 未识别到文字")
-            except Exception as e:
-                failed += 1
-                print(f"✗ 图片 {i} OCR 失败: {e}")
-        
-        print(f"OCR 完成：成功 {successful}/{len(image_urls)}，失败 {failed}/{len(image_urls)}")
-        return "\n\n".join(results)
+                    yield (i, "")
+            except Exception:
+                yield (i, "")
 
 
 def extract_ocr_from_note(note, ocr_processor: Optional[OCRProcessor] = None) -> str:
@@ -258,7 +280,6 @@ def extract_ocr_from_note(note, ocr_processor: Optional[OCRProcessor] = None) ->
 
 if __name__ == "__main__":
     # 测试 OCR
-    import sys
     if len(sys.argv) > 1:
         processor = OCRProcessor()
         result = processor.ocr_image_from_file(sys.argv[1])

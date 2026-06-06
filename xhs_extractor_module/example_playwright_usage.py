@@ -17,7 +17,7 @@ def example_1_first_time_login():
     # 第一次使用时，需要先登录
     login_xhs_and_save_state()
     
-    print("\n✅ 登录完成！下次使用时将自动使用此登录态。")
+    print("\n[OK] 登录完成！下次使用时将自动使用此登录态。")
 
 
 def example_2_extract_from_share_text():
@@ -28,7 +28,7 @@ def example_2_extract_from_share_text():
     
     # 检查是否已登录
     if not check_login_state_exists():
-        print("❌ 请先运行登录：python -m xhs_extractor_module.xhs_login")
+        print("[X] 请先运行登录：python -m xhs_extractor_module.xhs_login")
         return
     
     # 小红书分享文本示例
@@ -55,7 +55,7 @@ def example_2_extract_from_share_text():
         # - 保存到数据库等
         
     except Exception as e:
-        print(f"❌ 错误: {e}")
+        print(f"[X] 错误: {e}")
 
 
 def example_3_extract_from_url():
@@ -65,7 +65,7 @@ def example_3_extract_from_url():
     print("=" * 60)
     
     if not check_login_state_exists():
-        print("❌ 请先运行登录：python -m xhs_extractor_module.xhs_login")
+        print("[X] 请先运行登录：python -m xhs_extractor_module.xhs_login")
         return
     
     # 可以直接使用URL（短链或完整链接都可以）
@@ -78,7 +78,7 @@ def example_3_extract_from_url():
         print(f"正文: {note.text[:200]}...")
         
     except Exception as e:
-        print(f"❌ 错误: {e}")
+        print(f"[X] 错误: {e}")
 
 
 def example_4_integration_with_existing_pipeline():
@@ -88,7 +88,7 @@ def example_4_integration_with_existing_pipeline():
     print("=" * 60)
     
     if not check_login_state_exists():
-        print("❌ 请先运行登录：python -m xhs_extractor_module.xhs_login")
+        print("[X] 请先运行登录：python -m xhs_extractor_module.xhs_login")
         return
     
     share_text = """算法面经：字节大模型Agent 11.16 一面： 请介绍 Tran... http://xhslink.com/o/EEfBYaRn4M 复制后打开【小红书】查看笔记！"""
@@ -106,7 +106,7 @@ def example_4_integration_with_existing_pipeline():
         # questions = extract_questions_from_note(note)
         
         # 4. 保存或处理
-        print(f"\n✅ 笔记提取完成")
+        print(f"\n[OK] 笔记提取完成")
         print(f"   标题: {note.title}")
         print(f"   正文: {len(note.text)} 字符")
         print(f"   图片: {len(note.images)} 张")
@@ -116,7 +116,7 @@ def example_4_integration_with_existing_pipeline():
         print(f"   - 保存到数据库")
         
     except Exception as e:
-        print(f"❌ 错误: {e}")
+        print(f"[X] 错误: {e}")
 
 
 if __name__ == "__main__":

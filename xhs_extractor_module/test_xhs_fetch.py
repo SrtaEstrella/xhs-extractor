@@ -5,6 +5,7 @@
 """
 import unittest
 import os
+import json
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from xhs_extractor_module.xhs_fetch import (
@@ -123,7 +124,7 @@ class TestFetchNoteIntegration(unittest.TestCase):
         """检查登录态文件是否存在"""
         cls.has_login_state = os.path.exists(STATE_PATH) and os.path.getsize(STATE_PATH) > 0
         if not cls.has_login_state:
-            print("\n⚠ 警告: 未找到登录态文件，跳过集成测试")
+            print("\n[!] 警告: 未找到登录态文件，跳过集成测试")
             print(f"   请先运行: python -m xhs_extractor_module.xhs_login")
     
     def test_fetch_note_no_login_state(self):
@@ -161,19 +162,17 @@ class TestFetchNoteMocked(unittest.TestCase):
     """使用Mock的单元测试"""
     
     @patch('xhs_extractor_module.xhs_fetch.sync_playwright')
+    @patch('xhs_extractor_module.xhs_fetch.launch_persistent_context')
     @patch('xhs_extractor_module.xhs_fetch.check_login_state_exists')
-    def test_fetch_note_mocked(self, mock_check_login, mock_playwright):
+    def test_fetch_note_mocked(self, mock_check_login, mock_launch_ctx, mock_playwright):
         """测试使用Mock的fetch_note"""
-        # 设置mock
         mock_check_login.return_value = True
-        
-        # Mock Playwright
-        mock_browser = MagicMock()
+
         mock_context = MagicMock()
         mock_page = MagicMock()
-        
+
         mock_page.url = "https://www.xiaohongshu.com/explore/abc123"
-        mock_page.evaluate.return_value = {
+        mock_page.evaluate.return_value = json.dumps({
             "note": {
                 "firstNoteId": "abc123",
                 "noteDetailMap": {
@@ -187,23 +186,19 @@ class TestFetchNoteMocked(unittest.TestCase):
                     }
                 }
             }
-        }
-        
+        })
+
         mock_context.new_page.return_value = mock_page
-        mock_browser.new_context.return_value = mock_context
-        
+        mock_launch_ctx.return_value = mock_context
         mock_p = MagicMock()
-        mock_p.chromium.launch.return_value = mock_browser
         mock_playwright.return_value.__enter__.return_value = mock_p
-        
-        # 测试
+
         share_text = "测试 http://xhslink.com/o/TEST 复制后打开"
         note = fetch_note_from_share_text(share_text)
-        
-        # 验证
+
         self.assertEqual(note.title, "Mock标题")
         self.assertEqual(note.text, "Mock正文")
-        mock_browser.close.assert_called_once()
+        mock_context.close.assert_called_once()
 
 
 if __name__ == "__main__":

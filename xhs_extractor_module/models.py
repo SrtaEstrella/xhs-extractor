@@ -16,6 +16,7 @@ class Note:
     url: str                    # 笔记链接
     title: str                  # 笔记标题
     text: str                   # 纯文本内容（正文 + 你认为有用的补充）
+    author: str = ""            # 作者昵称
     ocr_text: str = ""          # 所有图片 OCR 文本合并
     images: List[str] = field(default_factory=list)  # 图片 URL 列表
     raw: Dict[str, Any] = field(default_factory=dict)  # 原始 JSON/HTML 解析结果，调试用
