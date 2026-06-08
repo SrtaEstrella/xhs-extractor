@@ -41,29 +41,25 @@ def login_xhs_and_save_state(state_path: str = None):
     print(f"用户数据目录: {user_data_dir}")
     print("\n正在打开浏览器...")
 
-    with sync_playwright() as p:
-        context = launch_persistent_context(p, headless=False, slow_mo=100)
-        page = context.new_page()
+    p = sync_playwright().start()
+    context = launch_persistent_context(p, headless=False, slow_mo=100)
+    page = context.new_page()
 
-        print("\n正在访问小红书官网...")
-        page.goto("https://www.xiaohongshu.com", wait_until="domcontentloaded", timeout=60000)
+    print("\n正在访问小红书官网...")
+    page.goto("https://www.xiaohongshu.com", wait_until="domcontentloaded", timeout=60000)
 
-        print("\n" + "=" * 60)
-        print("请在打开的浏览器里完成小红书登录：")
-        print("  - 可以使用手机号登录")
-        print("  - 也可以使用扫码登录")
-        print("  - 登录成功后，回到终端按回车继续...")
-        print("=" * 60)
+    print("\n" + "=" * 60)
+    print("请在打开的浏览器里完成小红书登录：")
+    print("  - 可以使用手机号登录")
+    print("  - 也可以使用扫码登录")
+    print("  - 登录成功后，回到终端按回车继续...")
+    print("=" * 60)
 
-        input("\n登录完成后按回车：")
+    input("\n登录完成后按回车：")
 
-        print(f"\n[OK] 登录状态已保存到: {user_data_dir}")
-        print("下次使用时将自动使用此登录态，无需再次登录。")
-
-        try:
-            context.close()
-        except Exception:
-            pass  # 用户可能已经手动关闭了浏览器窗口
+    print(f"\n[OK] 登录状态已保存到: {user_data_dir}")
+    print("下次使用时将自动使用此登录态，无需再次登录。")
+    print("浏览器窗口将保持打开，关闭终端后自动关闭。")
 
 
 def check_login_state_exists(state_path: str = None) -> bool:
@@ -164,13 +160,63 @@ def verify_login_state(state_path: str = None) -> bool:
         return False
 
 
+def browse_xhs():
+    """打开已登录的小红书页面供用户浏览。"""
+    import time
+    print("正在打开小红书...")
+    p = sync_playwright().start()
+    context = launch_persistent_context(p, headless=False)
+
+    # 标签页 1：小红书
+    page_xhs = context.new_page()
+    page_xhs.goto("https://www.xiaohongshu.com", wait_until="domcontentloaded", timeout=60000)
+
+    # 标签页 2：Streamlit（等它启动）
+    page_st = context.new_page()
+    for _ in range(15):
+        try:
+            page_st.goto("http://localhost:8501", wait_until="domcontentloaded", timeout=5000)
+            break
+        except Exception:
+            time.sleep(1)
+
+    # 关闭初始 about:blank 标签页
+    for p in context.pages:
+        if p.url == "about:blank":
+            p.close()
+
+    print("浏览器窗口将保持打开，按 Ctrl+C 或关闭终端退出。")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+
+
+def delete_login_state():
+    """删除登录态。"""
+    import shutil
+    user_data_dir = str(get_user_data_dir())
+    if os.path.exists(user_data_dir):
+        shutil.rmtree(user_data_dir)
+        print(f"[OK] 登录信息已清除")
+    else:
+        print("没有已保存的登录信息")
+
+
 if __name__ == "__main__":
     import sys
-    
-    # 如果传入参数 "--verify"，则只验证登录状态
-    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
-        is_valid = verify_login_state()
-        sys.exit(0 if is_valid else 1)
+
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--verify":
+            is_valid = verify_login_state()
+            sys.exit(0 if is_valid else 1)
+        elif sys.argv[1] == "--browse":
+            browse_xhs()
+        elif sys.argv[1] == "--logout":
+            delete_login_state()
+        else:
+            print(f"未知参数: {sys.argv[1]}")
     else:
         login_xhs_and_save_state()
 

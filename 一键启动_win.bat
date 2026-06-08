@@ -253,192 +253,41 @@ if not exist "xhs_extractor_module\browser_data" (
         echo.
     )
 ) else (
-    echo    [成功] 检测到已有登录信息
-    echo.
-    echo 请选择：
-    echo 1. 使用当前账号（继续使用已保存的登录信息）
-    echo 2. 切换账号（重新登录新账号）
-    echo.
-    set /p LOGIN_CHOICE="请选择 (1/2，直接回车默认使用当前账号): " < con
-    
-    if /i "!LOGIN_CHOICE!"=="2" (
+    echo    [成功] 检测到已有登录信息，验证中...
+
+    python -m xhs_extractor_module.xhs_login --verify 2>nul
+    if errorlevel 1 (
+        echo    [提示] 登录状态已过期，需要重新登录
         echo.
-        echo [说明] 正在切换账号...
         echo    1. 浏览器将自动打开小红书登录页面
         echo    2. 请在浏览器中完成登录
         echo    3. 登录成功后，回到终端按回车键
         echo.
         pause
-        
+
         python -m xhs_extractor_module.xhs_login
-        
+
         if errorlevel 1 (
             echo.
             echo [错误] 登录失败，请重试
             pause
             exit /b 1
         )
-        
-        if not exist "xhs_extractor_module\browser_data" (
-            echo.
-            echo [错误] 登录未完成，请重试
-            pause
-            exit /b 1
-        )
-        
-        REM 验证登录状态是否有效
+
         echo.
-        echo [验证] 正在验证登录状态...
-        python -m xhs_extractor_module.xhs_login --verify 2>nul
-        if errorlevel 1 (
-            echo.
-            echo [错误] 登录验证失败
-            echo    刚才的登录操作可能不成功或者账号信息文件已损坏
-            echo.
-            echo 请选择：
-            echo 1. 重新登录
-            echo 2. 退出脚本
-            echo.
-            set /p RETRY_CHOICE="请选择 (1/2): " < con
-            
-            if /i "!RETRY_CHOICE!"=="1" (
-                echo.
-                echo [说明] 正在重新登录...
-                echo    1. 浏览器将自动打开小红书登录页面
-                echo    2. 请在浏览器中完成登录
-                echo    3. 登录成功后，回到终端按回车键
-                echo.
-                pause
-                
-                python -m xhs_extractor_module.xhs_login
-                
-                if errorlevel 1 (
-                    echo.
-                    echo [错误] 登录失败，请重试
-                    pause
-                    exit /b 1
-                )
-                
-                if not exist "xhs_extractor_module\browser_data" (
-                    echo.
-                    echo [错误] 登录未完成，请重试
-                    pause
-                    exit /b 1
-                )
-                
-                REM 再次验证登录状态
-                echo.
-                echo [验证] 正在验证登录状态...
-                python -m xhs_extractor_module.xhs_login --verify 2>nul
-                if errorlevel 1 (
-                    echo.
-                    echo [错误] 登录验证仍然失败，请检查网络连接或稍后重试
-                    pause
-                    exit /b 1
-                )
-                
-                echo.
-                echo [成功] 登录成功！登录信息已验证有效
-                echo.
-            ) else (
-                echo.
-                echo 退出脚本
-                pause
-                exit /b 1
-            )
-        ) else (
-            echo.
-            echo [成功] 账号切换成功！登录信息已验证有效
-            echo.
-        )
+        echo [成功] 登录成功！登录信息已验证有效
+        echo.
     ) else (
-        REM 验证当前账号的登录状态是否有效
+        echo    [成功] 登录信息已验证有效
         echo.
-        echo [验证] 正在验证当前账号的登录状态...
-        python -m xhs_extractor_module.xhs_login --verify 2>nul
-        if errorlevel 1 (
-            echo.
-            echo [错误] 登录验证失败
-            echo    保存的登录信息可能已过期或已损坏
-            echo.
-            echo 请选择：
-            echo 1. 重新登录
-            echo 2. 退出脚本
-            echo.
-            set /p RETRY_CHOICE="请选择 (1/2): " < con
-            
-            if /i "!RETRY_CHOICE!"=="1" (
-                echo.
-                echo [说明] 正在重新登录...
-                echo    1. 浏览器将自动打开小红书登录页面
-                echo    2. 请在浏览器中完成登录
-                echo    3. 登录成功后，回到终端按回车键
-                echo.
-                pause
-                
-                python -m xhs_extractor_module.xhs_login
-                
-                if errorlevel 1 (
-                    echo.
-                    echo [错误] 登录失败，请重试
-                    pause
-                    exit /b 1
-                )
-                
-                if not exist "xhs_extractor_module\browser_data" (
-                    echo.
-                    echo [错误] 登录未完成，请重试
-                    pause
-                    exit /b 1
-                )
-                
-                REM 再次验证登录状态
-                echo.
-                echo [验证] 正在验证登录状态...
-                python -m xhs_extractor_module.xhs_login --verify 2>nul
-                if errorlevel 1 (
-                    echo.
-                    echo [错误] 登录验证仍然失败，请检查网络连接或稍后重试
-                    pause
-                    exit /b 1
-                )
-                
-                echo.
-                echo [成功] 登录成功！登录信息已验证有效
-                echo.
-            ) else (
-                echo.
-                echo 退出脚本
-                pause
-                exit /b 1
-            )
-        ) else (
-            echo.
-            echo [成功] 登录信息已验证有效，继续启动
-            echo.
-        )
+        echo [启动] 正在启动浏览器和工具界面...
+        echo    浏览器将打开两个标签页：小红书 + 工具界面
+        echo    按 Ctrl+C 或关闭终端即可退出
+        echo.
+        echo.
+        echo [启动] 正在打开小红书...
+        start /b python -m xhs_extractor_module.xhs_login --browse
+        echo [启动] 正在启动 Web 界面...
+        streamlit run xhs_extractor_module/web_app.py --server.headless true
     )
 )
-
-REM ============================================
-REM 步骤4: 启动Web界面
-REM ============================================
-echo [4/4] 启动Web界面...
-echo.
-echo [启动] 正在启动...
-echo    浏览器将自动打开，如果没有自动打开，请访问: http://localhost:8501
-echo.
-echo [提示] 按 Ctrl+C 可以停止服务
-echo.
-
-REM 启动Streamlit
-if "%FILTER_CONSOLE_ERRORS%"=="true" (
-    REM 过滤PyTorch相关的非致命错误（默认模式）
-    streamlit run xhs_extractor_module/web_app.py 2>&1 | findstr /V /C:"torch.classes" /C:"streamlit.watcher" /C:"RuntimeError: Tried to instantiate class" /C:"RuntimeError: no running event loop" /C:"Examining the path of torch.classes" || echo.
-) else (
-    REM 不过滤，显示所有输出（开发者模式）
-    streamlit run xhs_extractor_module/web_app.py
-)
-
-pause
-

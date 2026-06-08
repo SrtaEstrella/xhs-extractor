@@ -133,9 +133,13 @@ def get_user_data_dir() -> Path:
     return _USER_DATA_DIR
 
 
+_CDP_PORT = 9222
+_CDP_URL = f"http://127.0.0.1:{_CDP_PORT}"
+
+
 def launch_persistent_context(playwright_instance, **kwargs):
     """
-    使用持久化用户目录启动浏览器上下文。
+    使用持久化用户目录启动浏览器上下文，优先复用已运行的浏览器。
     登录态自动保留在磁盘上，不会开 InPrivate 窗口。
 
     Args:
@@ -147,16 +151,30 @@ def launch_persistent_context(playwright_instance, **kwargs):
     """
     channel = detect_browser_channel()
     name = _channel_names[channel]
-    print(f"[浏览器] 使用 {name}")
-
     user_data_dir = str(_USER_DATA_DIR)
     os.makedirs(user_data_dir, exist_ok=True)
 
-    launch_options = {}
+    headless = kwargs.pop("headless", False)
+
+    # 非 headless 模式（登录）：尝试连接已运行的浏览器
+    if not headless:
+        try:
+            browser = playwright_instance.chromium.connect_over_cdp(_CDP_URL)
+            contexts = browser.contexts
+            if contexts:
+                print(f"[浏览器] 复用已运行的 {name}")
+                return contexts[0]
+        except Exception:
+            pass
+
+    # 启动新浏览器
+    print(f"[浏览器] 使用 {name}")
+    launch_options: dict = {"args": [f"--remote-debugging-port={_CDP_PORT}"]}
+    if not headless:
+        launch_options["args"].append("--start-maximized")
+        launch_options["no_viewport"] = True
     if channel:
         launch_options["channel"] = channel
-
-    headless = kwargs.pop("headless", False)
 
     return playwright_instance.chromium.launch_persistent_context(
         user_data_dir,
